@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Scheduling System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #1a237e;
+            --secondary-color: #283593;
+            --accent-color: #536dfe;
+            --success-color: #4caf50;
+            --warning-color: #ff9800;
+            --danger-color: #f44336;
+            --light-bg: #f5f7ff;
+            --dark-bg: #0d1117;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: #333;
+            margin: 0;
+            padding-top: 60px;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            width: 250px;
+            height: calc(100vh - 60px);
+            background-color: white;
+            box-shadow: var(--card-shadow);
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+            transition: margin-left 0.3s ease;
+        }
+        
+        @media (max-width: 992px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.active {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 20px;
+            transition: transform 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+            padding: 15px 20px;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+        
+        .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--accent-color);
+        }
+        
+        .btn-primary {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        
+        .order-buy {
+            background-color: rgba(76, 175, 80, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+        
+        .order-sell {
+            background-color: rgba(244, 67, 54, 0.1);
+            color: var(--danger-color);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+        
+        .status-active {
+            color: var(--success-color);
+        }
+        
+        .status-paused {
+            color: var(--warning-color);
+        }
+        
+        .status-error {
+            color: var(--danger-color);
+        }
+        
+        .market-up {
+            color: var(--success-color);
+        }
+        
+        .market-down {
+            color: var(--danger-color);
+        }
+        
+        .schedule-item {
+            border-left: 4px solid var(--accent-color);
+            padding-left: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .progress {
+            height: 8px;
+            border-radius: 4px;
+        }
+        
+        #sidebarToggle {
+            display: none;
+        }
+        
+        @media (max-width: 992px) {
+            #sidebarToggle {
+                display: inline-block;
+            }
+        }
+        
+        .table-responsive {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .table th {
+            font-weight: 600;
+            background-color: #f8f9fa;
+            border-top: none;
+        }
+        
+        .modal-content {
+            border-radius: 12px;
+            border: none;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--accent-color);
+            border-bottom: 3px solid var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>
+                <strong>Trade Scheduler Pro</strong>
+            </a>
+            
+            <button id="sidebarToggle" class="btn btn-outline-light me-2">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <div class="d-flex align-items-center">
+                <div class="dropdown me-3">
+                    <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-exchange-alt me-1"></i>
+                        <span id="tradingMode">Paper Trading</span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="changeTradingMode('paper')">Paper Trading</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="changeTradingMode('live')">Live Trading</a></li>
+                    </ul>
+                </div>
+                
+                <div class="dropdown">
+                    <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user-circle me-1"></i> Admin
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i> Settings</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-history me-2"></i> Logs</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="p-3">
+            <div class="list-group list-group-flush">
+                <a href="#" class="list-group-item list-group-item-action active">
+                    <i class="fas fa-tachometer-alt me-3"></i> Dashboard
+                </a>
+                <a href="#strategies" class="list-group-item list-group-item-action">
+                    <i class="fas fa-chess-board me-3"></i> Strategies
+                </a>
+                <a href="#schedules" class="list-group-item list-group-item-action">
+                    <i class="fas fa-clock me-3"></i> Schedules
+                </a>
+                <a href="#orders" class="list-group-item list-group-item-action">
+                    <i class="fas fa-exchange-alt me-3"></i> Orders
+                </a>
+                <a href="#monitor" class="list-group-item list-group-item-action">
+                    <i class="fas fa-chart-bar me-3"></i> Market Monitor
+                </a>
+                <a href="#risk" class="list-group-item list-group-item-action">
+                    <i class="fas fa-shield-alt me-3"></i> Risk Management
+                </a>
+                <a href="#backtest" class="list-group-item list-group-item-action">
+                    <i class="fas fa-vial me-3"></i> Backtesting
+                </a>
+                <a href="#reports" class="list-group-item list-group-item-action">
+                    <i class="fas fa-file-alt me-3"></i> Reports
+                </a>
+                <a href="#config" class="list-group-item list-group-item-action">
+                    <i class="fas fa-sliders-h me-3"></i> Configuration
+                </a>
+            </div>
+            
+            <div class="mt-4 p-3 bg-light rounded">
+                <h6 class="mb-3">System Status</h6>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>CPU Usage</span>
+                    <span id="cpuUsage">12%</span>
+                </div>
+                <div class="progress mb-3">
+                    <div class="progress-bar bg-success" style="width: 12%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Memory</span>
+                    <span id="memoryUsage">42%</span>
+                </div>
+                <div class="progress mb-3">
+                    <div class="progress-bar bg-info" style="width: 42%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Uptime</span>
+                    <span id="uptime">5d 12h</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">Trading Dashboard</h2>
+                    <div>
+                        <button class="btn btn-primary me-2" onclick="openNewStrategyModal()">
+                            <i class="fas fa-plus me-1"></i> New Strategy
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="openNewScheduleModal()">
+                            <i class="fas fa-clock me-1"></i> New Schedule
+                        </button>
+                    </div>
+                </div>
+                <p class="text-muted">Real-time monitoring and control of automated trading strategies</p>
+            </div>
+        </div>
+        
+        <!-- Stats Cards -->
+        <div class="row">
+            <div class="col-md-3 col-sm-6">
+                <div class="card stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <h5 class="text-muted">Total P&L</h5>
+                    <div class="stat-value text-success" id="totalPnL">+$12,450</div>
+                    <p class="text-muted small">Today: <span class="text-success">+$320</span></p>
+                </div>
+            </div>
+            
+            <div class="col-md-3 col-sm-6">
+                <div class="card stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-chart-pie"></i>
+                    </div>
+                    <h5 class="text-muted">Win Rate</h5>
+                    <div class="stat-value" id="winRate">68.2%</div>
+                    <p class="text-muted small">Last 30 days</p>
+                </div>
+            </div>
+            
+            <div class="col-md-3 col-sm-6">
+                <div class="card stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h5 class="text-muted">Active Strategies</h5>
+                    <div class="stat-value" id="activeStrategies">8</div>
+                    <p class="text-muted small">of 12 total</p>
+                </div>
+            </div>
+            
+            <div class="col-md-3 col-sm-6">
+                <div class="card stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h5 class="text-muted">Pending Orders</h5>
+                    <div class="stat-value" id="pendingOrders">3</div>
+                    <p class="text-muted small">2 Buy / 1 Sell</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts and Main Content -->
+        <div class="row">
+            <!-- Left Column: Charts -->
+            <div class="col-lg-8">
+                <!-- P&L Chart -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Performance Chart</h5>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary active" onclick="changeChartRange('1d')">1D</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="changeChartRange('1w')">1W</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="changeChartRange('1m')">1M</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="changeChartRange('3m')">3M</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="performanceChart" height="250"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Recent Orders -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Recent Orders</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Symbol</th>
+                                        <th>Strategy</th>
+                                        <th>Side</th>
+                                        <th>Qty</th>
+                                        <th>Price</th>
+                                        <th>Status</th>
+                                        <th>P&L</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ordersTable">
+                                    <!-- Orders will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Market and Alerts -->
+            <div class="col-lg-4">
+                <!-- Market Overview -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Market Overview</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>SPY</strong>
+                                    <div class="text-muted small">S&P 500 ETF</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="market-up">$452.34</div>
+                                    <div class="market-up small">+0.85%</div>
+                                </div>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>QQQ</strong>
+                                    <div class="text-muted small">Nasdaq 100 ETF</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="market-up">$378.21</div>
+                                    <div class="market-up small">+1.23%</div>
+                                </div>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>AAPL</strong>
+                                    <div class="text-muted small">Apple Inc.</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="market-down">$185.42</div>
+                                    <div class="market-down small">-0.32%</div>
+                                </div>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>MSFT</strong>
+                                    <div class="text-muted small">Microsoft Corp</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="market-up">$337.15</div>
+                                    <div class="market-up small">+0.92%</div>
+                                </div>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>VIX</strong>
+                                    <div class="text-muted small">Volatility Index</div>
+                                </div>
+                                <div class="text-end">
+                                    <div>15.42</div>
+                                    <div class="market-down small">-2.1%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Active Strategies -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Active Strategies</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>Mean Reversion (AAPL)</strong>
+                                    <span class="badge bg-success">Active</span>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Today P&L: <span class="text-success">+$245</span></span>
+                                    <span>Win Rate: 72%</span>
+                                </div>
+                            </div>
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>Breakout (SPY)</strong>
+                                    <span class="badge bg-success">Active</span>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Today P&L: <span class="text-danger">-$120</span></span>
+                                    <span>Win Rate: 65%</span>
+                                </div>
+                            </div>
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>Momentum (QQQ)</strong>
+                                    <span class="badge bg-warning">Paused</span>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Today P&L: <span class="text-success">+$89</span></span>
+                                    <span>Win Rate: 58%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Alerts -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">System Alerts</h5>
+                        <span class="badge bg-danger" id="alertCount">3</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item">
+                                <div class="d-flex">
+                                    <div class="me-3 text-danger">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">Risk Limit Warning</div>
+                                        <small>Daily loss limit (2%) approaching</small>
+                                        <div class="text-muted small">2 min ago</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-group-item">
+                                <div class="d-flex">
+                                    <div class="me-3 text-warning">
+                                        <i class="fas fa-clock"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">Schedule Missed</div>
+                                        <small>"Market Open" schedule failed to execute</small>
+                                        <div class="text-muted small">15 min ago</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-group-item">
+                                <div class="d-flex">
+                                    <div class="me-3 text-info">
+                                        <i class="fas fa-info-circle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">Order Executed</div>
+                                        <small>BUY 10 AAPL @ $185.42 filled</small>
+                                        <div class="text-muted small">30 min ago</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Schedules Table -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Scheduled Tasks</h5>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="schedulerToggle" checked>
+                            <label class="form-check-label" for="schedulerToggle">Scheduler Active</label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Schedule</th>
+                                        <th>Symbols</th>
+                                        <th>Strategy</th>
+                                        <th>Status</th>
+                                        <th>Last Run</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="schedulesTable">
+                                    <!-- Schedules will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modals -->
+    
+    <!-- New Strategy Modal -->
+    <div class="modal fade" id="newStrategyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Trading Strategy</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-4">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#strategyBasic">Basic</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#strategyParams">Parameters</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#strategyRisk">Risk</a>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="strategyBasic">
+                            <div class="mb-3">
+                                <label class="form-label">Strategy Name</label>
+                                <input type="text" class="form-control" id="strategyName" placeholder="e.g., Intraday Mean Reversion">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Strategy Type</label>
+                                <select class="form-select" id="strategyType">
+                                    <option value="mean_reversion">Mean Reversion</option>
+                                    <option value="breakout">Breakout</option>
+                                    <option value="momentum">Momentum</option>
+                                    <option value="arbitrage">Arbitrage</option>
+                                    <option value="grid">Grid Trading</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Symbols</label>
+                                <select class="form-select" id="strategySymbols" multiple>
+                                    <option value="AAPL">AAPL - Apple Inc.</option>
+                                    <option value="MSFT">MSFT - Microsoft</option>
+                                    <option value="GOOGL">GOOGL - Alphabet</option>
+                                    <option value="AMZN">AMZN - Amazon</option>
+                                    <option value="TSLA">TSLA - Tesla</option>
+                                    <option value="SPY">SPY - S&P 500 ETF</option>
+                                    <option value="QQQ">QQQ - Nasdaq ETF</option>
+                                </select>
+                                <div class="form-text">Hold Ctrl/Cmd to select multiple symbols</div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="strategyParams">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Default Quantity</label>
+                                    <input type="number" class="form-control" id="defaultQty" value="10">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Timeframe</label>
+                                    <select class="form-select" id="timeframe">
+                                        <option value="1m">1 Minute</option>
+                                        <option value="5m">5 Minutes</option>
+                                        <option value="15m">15 Minutes</option>
+                                        <option value="1h">1 Hour</option>
+                                        <option value="4h">4 Hours</option>
+                                        <option value="1d">Daily</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div id="meanReversionParams">
+                                <h6 class="mt-3">Mean Reversion Parameters</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Bollinger Band Period</label>
+                                        <input type="number" class="form-control" value="20" min="5" max="100">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Standard Deviations</label>
+                                        <input type="number" class="form-control" value="2.0" step="0.1" min="1" max="3">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="breakoutParams" style="display: none;">
+                                <h6 class="mt-3">Breakout Parameters</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Channel Period</label>
+                                        <input type="number" class="form-control" value="20" min="5" max="100">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Breakout Threshold (%)</label>
+                                        <input type="number" class="form-control" value="1.0" step="0.1" min="0.1" max="5">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="strategyRisk">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Max Position Size ($)</label>
+                                    <input type="number" class="form-control" value="10000">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Risk Per Trade (%)</label>
+                                    <input type="number" class="form-control" value="1.0" step="0.1" min="0.1" max="5">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Stop Loss (%)</label>
+                                    <input type="number" class="form-control" value="2.0" step="0.1" min="0.5" max="10">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Take Profit (%)</label>
+                                    <input type="number" class="form-control" value="4.0" step="0.1" min="1" max="20">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableTrailingStop">
+                                    <label class="form-check-label" for="enableTrailingStop">
+                                        Enable Trailing Stop
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveStrategy()">Save Strategy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- New Schedule Modal -->
+    <div class="modal fade" id="newScheduleModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Schedule</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Schedule Name</label>
+                        <input type="text" class="form-control" id="scheduleName" placeholder="e.g., Market Open Scan">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Schedule Type</label>
+                        <select class="form-select" id="scheduleType" onchange="toggleScheduleFields()">
+                            <option value="time">Time-based</option>
+                            <option value="market">Market Condition</option>
+                            <option value="recurring">Recurring Interval</option>
+                        </select>
+                    </div>
+                    
+                    <div id="timeFields">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Time</label>
+                                <input type="time" class="form-control" id="scheduleTime" value="09:30">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Days of Week</label>
+                                <select class="form-select" id="scheduleDays" multiple>
+                                    <option value="0" selected>Monday</option>
+                                    <option value="1" selected>Tuesday</option>
+                                    <option value="2" selected>Wednesday</option>
+                                    <option value="3" selected>Thursday</option>
+                                    <option value="4" selected>Friday</option>
+                                    <option value="5">Saturday</option>
+                                    <option value="6">Sunday</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="marketFields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Condition Type</label>
+                            <select class="form-select">
+                                <option value="price_above">Price Above</option>
+                                <option value="price_below">Price Below</option>
+                                <option value="volume_spike">Volume Spike</option>
+                                <option value="rsi_overbought">RSI Overbought</option>
+                                <option value="rsi_oversold">RSI Oversold</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Threshold Value</label>
+                            <input type="number" class="form-control" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Action</label>
+                        <select class="form-select" id="scheduleAction">
+                            <option value="run_strategy">Run Strategy</option>
+                            <option value="close_positions">Close Positions</option>
+                            <option value="send_alert">Send Alert</option>
+                            <option value="execute_order">Execute Order</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Target Strategy</label>
+                        <select class="form-select" id="targetStrategy">
+                            <option value="mean_reversion_aapl">Mean Reversion (AAPL)</option>
+                            <option value="breakout_spy">Breakout (SPY)</option>
+                            <option value="momentum_qqq">Momentum (QQQ)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSchedule()">Save Schedule</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize variables
+        let performanceChart;
+        let ordersData = [];
+        let schedulesData = [];
+        
+        // DOM Ready
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadOrders();
+            loadSchedules();
+            startRealTimeUpdates();
+            
+            // Sidebar toggle for mobile
+            document.getElementById('sidebarToggle').addEventListener('click', function() {
+                document.querySelector('.sidebar').classList.toggle('active');
+            });
+            
+            // Strategy type change handler
+            document.getElementById('strategyType').addEventListener('change', function() {
+                toggleStrategyParams(this.value);
+            });
+        });
+        
+        // Initialize charts
+        function initializeCharts() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: [10000, 10200, 10500, 10300, 10800, 11200, 11500, 11800, 12000, 12200, 12450, 12700],
+                        borderColor: '#536dfe',
+                        backgroundColor: 'rgba(83, 109, 254, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: {
+                                drawBorder: false
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display
